@@ -19,6 +19,12 @@ Workflow principal de despliegue automático que se ejecuta en cada push a `main
 ### `DEPLOYMENT.md`
 Guía completa de configuración del servidor y secretos de GitHub.
 
+### `TROUBLESHOOTING.md`
+Solución de problemas comunes del workflow con ejemplos y fixes detallados.
+
+### `QUICK_FIX.md`
+Guía rápida para solucionar el error más común (SSH_HOST vacío).
+
 ## 🔐 Secretos Requeridos
 
 Configura estos secretos en: `Settings > Secrets and variables > Actions`
@@ -90,9 +96,16 @@ graph LR
 ## 🆘 Soporte
 
 Si tienes problemas:
-1. Revisa la [Guía de Solución de Problemas](./DEPLOYMENT.md#solución-de-problemas)
-2. Verifica los logs en la pestaña Actions de GitHub
-3. Conéctate al servidor y revisa logs con `pm2 logs`
+
+### Error SSH_HOST vacío (más común)
+📖 [Solución Rápida](./QUICK_FIX.md) - Arreglo en 3 pasos (2 minutos)
+
+### Otros Errores
+1. 🐛 [Guía Completa de Troubleshooting](./TROUBLESHOOTING.md)
+2. 📖 [Guía de Despliegue](./DEPLOYMENT.md#solución-de-problemas)
+3. ✅ [Checklist de Verificación](./DEPLOYMENT_CHECKLIST.md)
+4. Verifica los logs en la pestaña Actions de GitHub
+5. Conéctate al servidor y revisa logs con `pm2 logs`
 
 ## 📝 Notas
 

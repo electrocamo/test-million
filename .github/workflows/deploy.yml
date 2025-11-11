@@ -29,11 +29,83 @@ env:
 
 jobs:
   # ==============================================================================
+  # JOB 0: Validar Secretos (Se ejecuta primero)
+  # ==============================================================================
+  validate-secrets:
+    name: 🔍 Validate Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🔍 Check Required Secrets
+        run: |
+          echo "=================================================="
+          echo "🔍 Validando secretos de GitHub..."
+          echo "=================================================="
+          
+          ERROR=0
+          
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "❌ ERROR: SSH_HOST no está configurado"
+            ERROR=1
+          else
+            echo "✅ SSH_HOST: configurado"
+          fi
+          
+          if [ -z "${{ secrets.SSH_USER }}" ]; then
+            echo "❌ ERROR: SSH_USER no está configurado"
+            ERROR=1
+          else
+            echo "✅ SSH_USER: configurado"
+          fi
+          
+          if [ -z "${{ secrets.SSH_KEY }}" ]; then
+            echo "❌ ERROR: SSH_KEY no está configurado"
+            ERROR=1
+          else
+            echo "✅ SSH_KEY: configurado (longitud: ${#SSH_KEY})"
+          fi
+          
+          if [ -z "${{ secrets.APP_PATH_BACKEND }}" ]; then
+            echo "❌ ERROR: APP_PATH_BACKEND no está configurado"
+            ERROR=1
+          else
+            echo "✅ APP_PATH_BACKEND: ${{ secrets.APP_PATH_BACKEND }}"
+          fi
+          
+          if [ -z "${{ secrets.APP_PATH_FRONTEND }}" ]; then
+            echo "❌ ERROR: APP_PATH_FRONTEND no está configurado"
+            ERROR=1
+          else
+            echo "✅ APP_PATH_FRONTEND: ${{ secrets.APP_PATH_FRONTEND }}"
+          fi
+          
+          if [ -z "${{ secrets.PM2_APP_NAME_FRONTEND }}" ]; then
+            echo "❌ ERROR: PM2_APP_NAME_FRONTEND no está configurado"
+            ERROR=1
+          else
+            echo "✅ PM2_APP_NAME_FRONTEND: ${{ secrets.PM2_APP_NAME_FRONTEND }}"
+          fi
+          
+          echo "=================================================="
+          if [ $ERROR -eq 1 ]; then
+            echo "❌ Validación FALLIDA"
+            echo ""
+            echo "📝 Configura los secretos en:"
+            echo "   GitHub > Settings > Secrets and variables > Actions"
+            echo ""
+            echo "📖 Guía completa: .github/DEPLOYMENT.md"
+            exit 1
+          else
+            echo "✅ Todos los secretos están configurados correctamente"
+          fi
+
+  # ==============================================================================
   # JOB 1: Despliegue del Backend (.NET)
   # ==============================================================================
   deploy-backend:
     name: 🔧 Deploy Backend (.NET)
     runs-on: ubuntu-latest
+    needs: validate-secrets
     
     steps:
       # ------------------------------------------------------------------------------
@@ -148,6 +220,7 @@ jobs:
   deploy-frontend:
     name: 🎨 Deploy Frontend (Next.js)
     runs-on: ubuntu-latest
+    needs: validate-secrets
     
     steps:
       # ------------------------------------------------------------------------------
