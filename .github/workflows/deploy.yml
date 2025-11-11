@@ -174,13 +174,46 @@ jobs:
             frontend/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_FRONTEND }}/
 
-      - name: 🔄 Restart
+      - name: 🔄 Restart Frontend
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            echo "🔄 Reiniciando frontend..."
             cd ${{ secrets.APP_PATH_FRONTEND }}
+            
+            # Instalar dependencias de producción
+            echo "📦 Instalando dependencias..."
             npm ci --production
-            pm2 restart ${{ secrets.PM2_APP_NAME_FRONTEND }} || pm2 start npm --name ${{ secrets.PM2_APP_NAME_FRONTEND }} -- start
+            
+            # Verificar si PM2 está instalado
+            if ! command -v pm2 &> /dev/null; then
+              echo "❌ ERROR: PM2 no está instalado"
+              echo "📝 Instálalo con: sudo npm install -g pm2"
+              exit 1
+            fi
+            
+            APP_NAME="${{ secrets.PM2_APP_NAME_FRONTEND }}"
+            
+            # Verificar si la app ya existe en PM2
+            if pm2 list | grep -q "$APP_NAME"; then
+              echo "🔄 Aplicación existe, reiniciando..."
+              pm2 reload "$APP_NAME" --update-env
+              echo "✅ Aplicación reiniciada"
+            else
+              echo "🚀 Primera ejecución, iniciando aplicación..."
+              # Detener cualquier proceso en puerto 3000
+              lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+              # Iniciar nueva aplicación
+              pm2 start npm --name "$APP_NAME" -- start
+              echo "✅ Aplicación iniciada"
+            fi
+            
+            # Guardar configuración de PM2
             pm2 save
+            
+            # Mostrar estado
+            pm2 list
+            
+            echo "✅ Frontend desplegado y corriendo correctamente"
           EOF
 
   # ==============================================================================
