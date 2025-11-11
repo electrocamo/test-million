@@ -34,6 +34,7 @@ jobs:
   validate-secrets:
     name: 🔍 Validate Secrets
     runs-on: ubuntu-latest
+    environment: PRODUCTION
     
     steps:
       - name: 🔍 Check Required Secrets
@@ -106,6 +107,7 @@ jobs:
     name: 🔧 Deploy Backend (.NET)
     runs-on: ubuntu-latest
     needs: validate-secrets
+    environment: PRODUCTION
     
     steps:
       # ------------------------------------------------------------------------------
@@ -221,6 +223,7 @@ jobs:
     name: 🎨 Deploy Frontend (Next.js)
     runs-on: ubuntu-latest
     needs: validate-secrets
+    environment: PRODUCTION
     
     steps:
       # ------------------------------------------------------------------------------
