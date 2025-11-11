@@ -1,0 +1,66 @@
+.filterContainer {
+  background-color: var(--background);
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow);
+}
+
+.filterTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filterActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.resetButton {
+  min-width: 150px;
+}
+
+@media (max-width: 768px) {
+  .filterContainer {
+    padding: 1.5rem;
+  }
+
+  .filterGrid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .filterActions {
+    justify-content: stretch;
+  }
+
+  .resetButton {
+    width: 100%;
+  }
+}
+
+
