@@ -2,34 +2,27 @@
 # GitHub Actions Workflow - Despliegue Automático a Producción
 # ==============================================================================
 # 
-# Este workflow se ejecuta automáticamente cuando se hace push a la rama main
-# y despliega tanto el backend (.NET) como el frontend (Next.js) al servidor
-#
-# Secretos requeridos en el repositorio:
-# - SSH_HOST: Dirección IP o dominio del servidor
-# - SSH_USER: Usuario SSH para conectarse al servidor
-# - SSH_KEY: Clave privada SSH para autenticación
-# - APP_PATH_BACKEND: Ruta del proyecto backend en el servidor
-# - APP_PATH_FRONTEND: Ruta del proyecto frontend en el servidor
-# - PM2_APP_NAME_FRONTEND: Nombre de la aplicación frontend en PM2
+# Estructura personalizada:
+# - Backend: /var/www/TestMillion/Back (proyecto .NET directo)
+# - Frontend: /var/www/TestMillion/Front (proyecto Next.js directo)
+# 
+# Este workflow NO requiere que los directorios sean repositorios git
 # ==============================================================================
 
 name: 🚀 Deploy to Production
 
-# Trigger: Se ejecuta cuando hay push a la rama main
 on:
   push:
     branches:
       - main
 
-# Configuración de variables de entorno globales
 env:
   NODE_VERSION: '18.x'
   DOTNET_VERSION: '9.0.x'
 
 jobs:
   # ==============================================================================
-  # JOB 0: Validar Secretos (Se ejecuta primero)
+  # JOB 0: Validar Secretos
   # ==============================================================================
   validate-secrets:
     name: 🔍 Validate Secrets
@@ -63,7 +56,7 @@ jobs:
             echo "❌ ERROR: SSH_KEY no está configurado"
             ERROR=1
           else
-            echo "✅ SSH_KEY: configurado (longitud: ${#SSH_KEY})"
+            echo "✅ SSH_KEY: configurado"
           fi
           
           if [ -z "${{ secrets.APP_PATH_BACKEND }}" ]; then
@@ -90,18 +83,13 @@ jobs:
           echo "=================================================="
           if [ $ERROR -eq 1 ]; then
             echo "❌ Validación FALLIDA"
-            echo ""
-            echo "📝 Configura los secretos en:"
-            echo "   GitHub > Settings > Secrets and variables > Actions"
-            echo ""
-            echo "📖 Guía completa: .github/DEPLOYMENT.md"
             exit 1
           else
             echo "✅ Todos los secretos están configurados correctamente"
           fi
 
   # ==============================================================================
-  # JOB 1: Despliegue del Backend (.NET)
+  # JOB 1: Build y Deploy Backend
   # ==============================================================================
   deploy-backend:
     name: 🔧 Deploy Backend (.NET)
@@ -110,90 +98,62 @@ jobs:
     environment: PRODUCTION
     
     steps:
-      # ------------------------------------------------------------------------------
-      # Paso 1: Configurar clave SSH para conexión al servidor
-      # ------------------------------------------------------------------------------
-      - name: 🔐 Configure SSH Key
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 📦 Restore Dependencies
         run: |
-          echo "Configurando clave SSH..."
+          cd BackendMillionApi
+          dotnet restore
+
+      - name: 🏗️ Build Backend
+        run: |
+          cd BackendMillionApi
+          dotnet publish -c Release -o ./publish
+
+      - name: 📤 Deploy to Server
+        run: |
+          echo "Configurando SSH..."
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-          echo "✅ Clave SSH configurada correctamente"
-
-      # ------------------------------------------------------------------------------
-      # Paso 2: Conectar al servidor y actualizar el código del backend
-      # ------------------------------------------------------------------------------
-      - name: 📥 Pull Latest Code (Backend)
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "=================================================="
-            echo "🔄 Actualizando código del backend..."
-            echo "=================================================="
-            cd ${{ secrets.APP_PATH_BACKEND }}
-            
-            # Verificar si el directorio existe
-            if [ ! -d ".git" ]; then
-              echo "❌ Error: No es un repositorio git válido"
-              exit 1
+          
+          echo "=================================================="
+          echo "📤 Desplegando backend al servidor..."
+          echo "=================================================="
+          
+          # Crear directorio de backup
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.APP_PATH_BACKEND }}/backup"
+          
+          # Backup de configuración actual
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            if [ -f ${{ secrets.APP_PATH_BACKEND }}/appsettings.json ]; then
+              cp ${{ secrets.APP_PATH_BACKEND }}/appsettings.json ${{ secrets.APP_PATH_BACKEND }}/backup/
             fi
-            
-            # Guardar cambios locales si existen
-            git stash
-            
-            # Actualizar código desde el repositorio
-            git pull origin main
-            
-            # Aplicar stash si había cambios
-            git stash pop || true
-            
-            echo "✅ Código actualizado correctamente"
-          EOF
-
-      # ------------------------------------------------------------------------------
-      # Paso 3: Restaurar dependencias de .NET
-      # ------------------------------------------------------------------------------
-      - name: 📦 Restore Dependencies (Backend)
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "=================================================="
-            echo "📦 Instalando dependencias del backend..."
-            echo "=================================================="
-            cd ${{ secrets.APP_PATH_BACKEND }}
-            
-            # Verificar si dotnet está instalado
-            if ! command -v dotnet &> /dev/null; then
-              echo "❌ Error: .NET no está instalado en el servidor"
-              exit 1
+          "
+          
+          # Copiar archivos compilados al servidor
+          rsync -avz --delete \
+            --exclude='appsettings.json' \
+            --exclude='appsettings.*.json' \
+            BackendMillionApi/publish/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_BACKEND }}/
+          
+          # Restaurar configuración
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            if [ -f ${{ secrets.APP_PATH_BACKEND }}/backup/appsettings.json ]; then
+              cp ${{ secrets.APP_PATH_BACKEND }}/backup/appsettings.json ${{ secrets.APP_PATH_BACKEND }}/
             fi
-            
-            # Restaurar dependencias
-            dotnet restore
-            
-            echo "✅ Dependencias restauradas correctamente"
-          EOF
+          "
+          
+          echo "✅ Archivos desplegados correctamente"
 
-      # ------------------------------------------------------------------------------
-      # Paso 4: Compilar y publicar el backend
-      # ------------------------------------------------------------------------------
-      - name: 🏗️ Build Backend
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "=================================================="
-            echo "🏗️  Compilando backend..."
-            echo "=================================================="
-            cd ${{ secrets.APP_PATH_BACKEND }}
-            
-            # Compilar en modo Release
-            dotnet publish -c Release -o ./publish
-            
-            echo "✅ Backend compilado correctamente"
-          EOF
-
-      # ------------------------------------------------------------------------------
-      # Paso 5: Reiniciar el servicio del backend
-      # ------------------------------------------------------------------------------
       - name: 🔄 Restart Backend Service
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
@@ -201,23 +161,23 @@ jobs:
             echo "🔄 Reiniciando servicio del backend..."
             echo "=================================================="
             
-            # Verificar si systemd está disponible
+            # Reiniciar con systemd
             if command -v systemctl &> /dev/null; then
-              # Reiniciar usando systemd (ajustar nombre del servicio)
-              sudo systemctl restart backend-million || echo "⚠️  Servicio systemd no encontrado"
+              sudo systemctl restart backend-million 2>/dev/null || echo "⚠️  Servicio systemd no encontrado"
             fi
             
-            # Alternativamente, si usas PM2 para .NET
+            # O reiniciar con PM2 si usas PM2 para .NET
             if command -v pm2 &> /dev/null; then
-              cd ${{ secrets.APP_PATH_BACKEND }}/publish
-              pm2 restart backend-million || pm2 start BackendMillionApi.dll --name backend-million --interpreter dotnet
+              cd ${{ secrets.APP_PATH_BACKEND }}
+              pm2 restart backend-million 2>/dev/null || \
+                pm2 start BackendMillionApi.dll --name backend-million --interpreter dotnet
             fi
             
             echo "✅ Servicio del backend reiniciado"
           EOF
 
   # ==============================================================================
-  # JOB 2: Despliegue del Frontend (Next.js)
+  # JOB 2: Build y Deploy Frontend
   # ==============================================================================
   deploy-frontend:
     name: 🎨 Deploy Frontend (Next.js)
@@ -226,100 +186,50 @@ jobs:
     environment: PRODUCTION
     
     steps:
-      # ------------------------------------------------------------------------------
-      # Paso 1: Configurar clave SSH para conexión al servidor
-      # ------------------------------------------------------------------------------
-      - name: 🔐 Configure SSH Key
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🎨 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 📦 Install Dependencies
         run: |
-          echo "Configurando clave SSH..."
+          cd frontend
+          npm ci
+
+      - name: 🏗️ Build Frontend
+        run: |
+          cd frontend
+          npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      - name: 📤 Deploy to Server
+        run: |
+          echo "Configurando SSH..."
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-          echo "✅ Clave SSH configurada correctamente"
+          
+          echo "=================================================="
+          echo "📤 Desplegando frontend al servidor..."
+          echo "=================================================="
+          
+          # Copiar archivos al servidor
+          rsync -avz --delete \
+            --exclude='node_modules' \
+            --exclude='.env.local' \
+            --exclude='.env*.local' \
+            frontend/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_FRONTEND }}/
+          
+          echo "✅ Archivos desplegados correctamente"
 
-      # ------------------------------------------------------------------------------
-      # Paso 2: Conectar al servidor y actualizar el código del frontend
-      # ------------------------------------------------------------------------------
-      - name: 📥 Pull Latest Code (Frontend)
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "=================================================="
-            echo "🔄 Actualizando código del frontend..."
-            echo "=================================================="
-            cd ${{ secrets.APP_PATH_FRONTEND }}
-            
-            # Verificar si el directorio existe
-            if [ ! -d ".git" ]; then
-              echo "❌ Error: No es un repositorio git válido"
-              exit 1
-            fi
-            
-            # Guardar cambios locales si existen
-            git stash
-            
-            # Actualizar código desde el repositorio
-            git pull origin main
-            
-            # Aplicar stash si había cambios
-            git stash pop || true
-            
-            echo "✅ Código actualizado correctamente"
-          EOF
-
-      # ------------------------------------------------------------------------------
-      # Paso 3: Instalar dependencias de Node.js
-      # ------------------------------------------------------------------------------
-      - name: 📦 Install Dependencies (Frontend)
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "=================================================="
-            echo "📦 Instalando dependencias del frontend..."
-            echo "=================================================="
-            cd ${{ secrets.APP_PATH_FRONTEND }}
-            
-            # Verificar si Node.js está instalado
-            if ! command -v node &> /dev/null; then
-              echo "❌ Error: Node.js no está instalado en el servidor"
-              exit 1
-            fi
-            
-            # Verificar versión de Node
-            echo "Node version: $(node --version)"
-            echo "NPM version: $(npm --version)"
-            
-            # Instalar dependencias (production only)
-            npm ci --production=false
-            
-            echo "✅ Dependencias instaladas correctamente"
-          EOF
-
-      # ------------------------------------------------------------------------------
-      # Paso 4: Compilar el frontend
-      # ------------------------------------------------------------------------------
-      - name: 🏗️ Build Frontend
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "=================================================="
-            echo "🏗️  Compilando frontend..."
-            echo "=================================================="
-            cd ${{ secrets.APP_PATH_FRONTEND }}
-            
-            # Compilar aplicación Next.js
-            npm run build
-            
-            # Verificar que el build fue exitoso
-            if [ ! -d ".next" ]; then
-              echo "❌ Error: El build falló, directorio .next no existe"
-              exit 1
-            fi
-            
-            echo "✅ Frontend compilado correctamente"
-          EOF
-
-      # ------------------------------------------------------------------------------
-      # Paso 5: Reiniciar la aplicación frontend con PM2
-      # ------------------------------------------------------------------------------
       - name: 🔄 Restart Frontend with PM2
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
@@ -328,17 +238,17 @@ jobs:
             echo "=================================================="
             cd ${{ secrets.APP_PATH_FRONTEND }}
             
-            # Verificar si PM2 está instalado
             if ! command -v pm2 &> /dev/null; then
               echo "❌ Error: PM2 no está instalado"
-              echo "💡 Instalar con: npm install -g pm2"
               exit 1
             fi
             
-            # Nombre de la aplicación en PM2
             APP_NAME="${{ secrets.PM2_APP_NAME_FRONTEND }}"
             
-            # Verificar si la aplicación ya está corriendo en PM2
+            # Reinstalar dependencias en producción si es necesario
+            npm ci --production
+            
+            # Reiniciar o iniciar la aplicación
             if pm2 list | grep -q "$APP_NAME"; then
               echo "🔄 Reiniciando aplicación existente..."
               pm2 restart "$APP_NAME"
@@ -347,85 +257,44 @@ jobs:
               pm2 start npm --name "$APP_NAME" -- start
             fi
             
-            # Guardar configuración de PM2
             pm2 save
-            
-            # Mostrar estado de PM2
             pm2 list
             
             echo "✅ Aplicación frontend reiniciada correctamente"
           EOF
 
   # ==============================================================================
-  # JOB 3: Ejecutar Tests (Opcional - descomenta si quieres tests antes del deploy)
-  # ==============================================================================
-  # run-tests:
-  #   name: 🧪 Run Tests
-  #   runs-on: ubuntu-latest
-  #   
-  #   steps:
-  #     - name: 📥 Checkout Code
-  #       uses: actions/checkout@v4
-  #     
-  #     # Tests del Backend
-  #     - name: 🔧 Setup .NET
-  #       uses: actions/setup-dotnet@v4
-  #       with:
-  #         dotnet-version: ${{ env.DOTNET_VERSION }}
-  #     
-  #     - name: 🧪 Run Backend Tests
-  #       run: |
-  #         cd BackendMillion.Test
-  #         dotnet test --verbosity normal
-  #     
-  #     # Tests del Frontend
-  #     - name: 🎨 Setup Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: ${{ env.NODE_VERSION }}
-  #     
-  #     - name: 📦 Install Frontend Dependencies
-  #       run: |
-  #         cd frontend
-  #         npm ci
-  #     
-  #     - name: 🧪 Run Frontend Tests
-  #       run: |
-  #         cd frontend
-  #         npm test
-
-  # ==============================================================================
-  # JOB 4: Notificación de Despliegue Exitoso
+  # JOB 3: Notificación de Éxito
   # ==============================================================================
   notify-success:
-    name: ✅ Notify Success
+    name: ✅ Deployment Success
     runs-on: ubuntu-latest
     needs: [deploy-backend, deploy-frontend]
     if: success()
     
     steps:
-      - name: 🎉 Deployment Success
+      - name: 🎉 Success Notification
         run: |
           echo "=================================================="
           echo "✅ DESPLIEGUE EXITOSO"
           echo "=================================================="
-          echo "Backend: Desplegado correctamente"
-          echo "Frontend: Desplegado correctamente"
-          echo "Fecha: $(date)"
+          echo "Backend: Desplegado en ${{ secrets.APP_PATH_BACKEND }}"
+          echo "Frontend: Desplegado en ${{ secrets.APP_PATH_FRONTEND }}"
           echo "Commit: ${{ github.sha }}"
+          echo "Rama: ${{ github.ref_name }}"
           echo "=================================================="
 
   # ==============================================================================
-  # JOB 5: Notificación de Fallo en el Despliegue
+  # JOB 4: Notificación de Fallo
   # ==============================================================================
   notify-failure:
-    name: ❌ Notify Failure
+    name: ❌ Deployment Failed
     runs-on: ubuntu-latest
     needs: [deploy-backend, deploy-frontend]
     if: failure()
     
     steps:
-      - name: ❌ Deployment Failed
+      - name: ❌ Failure Notification
         run: |
           echo "=================================================="
           echo "❌ DESPLIEGUE FALLIDO"
