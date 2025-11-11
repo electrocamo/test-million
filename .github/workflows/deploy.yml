@@ -160,7 +160,7 @@ jobs:
             echo "=================================================="
             echo "📦 Instalando dependencias del backend..."
             echo "=================================================="
-            cd ${{ secrets.APP_PATH_BACKEND }}/BackendMillionApi
+            cd ${{ secrets.APP_PATH_BACKEND }}
             
             # Verificar si dotnet está instalado
             if ! command -v dotnet &> /dev/null; then
@@ -183,7 +183,7 @@ jobs:
             echo "=================================================="
             echo "🏗️  Compilando backend..."
             echo "=================================================="
-            cd ${{ secrets.APP_PATH_BACKEND }}/BackendMillionApi
+            cd ${{ secrets.APP_PATH_BACKEND }}
             
             # Compilar en modo Release
             dotnet publish -c Release -o ./publish
@@ -209,7 +209,7 @@ jobs:
             
             # Alternativamente, si usas PM2 para .NET
             if command -v pm2 &> /dev/null; then
-              cd ${{ secrets.APP_PATH_BACKEND }}/BackendMillionApi/publish
+              cd ${{ secrets.APP_PATH_BACKEND }}/publish
               pm2 restart backend-million || pm2 start BackendMillionApi.dll --name backend-million --interpreter dotnet
             fi
             
@@ -276,7 +276,7 @@ jobs:
             echo "=================================================="
             echo "📦 Instalando dependencias del frontend..."
             echo "=================================================="
-            cd ${{ secrets.APP_PATH_FRONTEND }}/frontend
+            cd ${{ secrets.APP_PATH_FRONTEND }}
             
             # Verificar si Node.js está instalado
             if ! command -v node &> /dev/null; then
@@ -303,7 +303,7 @@ jobs:
             echo "=================================================="
             echo "🏗️  Compilando frontend..."
             echo "=================================================="
-            cd ${{ secrets.APP_PATH_FRONTEND }}/frontend
+            cd ${{ secrets.APP_PATH_FRONTEND }}
             
             # Compilar aplicación Next.js
             npm run build
@@ -326,7 +326,7 @@ jobs:
             echo "=================================================="
             echo "🔄 Reiniciando aplicación frontend con PM2..."
             echo "=================================================="
-            cd ${{ secrets.APP_PATH_FRONTEND }}/frontend
+            cd ${{ secrets.APP_PATH_FRONTEND }}
             
             # Verificar si PM2 está instalado
             if ! command -v pm2 &> /dev/null; then
