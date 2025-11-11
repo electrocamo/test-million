@@ -1,0 +1,25 @@
+{
+  "apps": [{
+    "name": "backend-million",
+    "cwd": "/var/www/TestMillion/Back",
+    "script": "dotnet",
+    "args": "BackendMillionApi.dll",
+    "interpreter": "none",
+    "env": {
+      "ASPNETCORE_ENVIRONMENT": "Production",
+      "ASPNETCORE_URLS": "http://0.0.0.0:5206",
+      "DOTNET_ROOT": "/root/.dotnet",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.dotnet"
+    },
+    "error_file": "/var/log/pm2/backend-million-error.log",
+    "out_file": "/var/log/pm2/backend-million-out.log",
+    "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
+    "merge_logs": true,
+    "autorestart": true,
+    "watch": false,
+    "max_memory_restart": "1G",
+    "instances": 1,
+    "exec_mode": "fork"
+  }]
+}
+

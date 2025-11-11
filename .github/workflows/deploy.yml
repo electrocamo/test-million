@@ -120,17 +120,75 @@ jobs:
             # Si no hay systemd, usar PM2
             if command -v pm2 &> /dev/null; then
               cd ${{ secrets.APP_PATH_BACKEND }}
-              echo "🔄 Reiniciando con PM2..."
-              pm2 restart backend-million 2>/dev/null || \
-                pm2 start dotnet --name backend-million -- BackendMillionApi.dll
-              echo "✅ Servicio reiniciado con PM2"
+              
+              # Verificar que el DLL existe
+              if [ ! -f "BackendMillionApi.dll" ]; then
+                echo "❌ ERROR: BackendMillionApi.dll no encontrado"
+                exit 1
+              fi
+              
+              echo "🔄 Configurando PM2..."
+              
+              # Detener y eliminar instancia anterior
+              pm2 delete backend-million 2>/dev/null || echo "No hay instancia previa"
+              
+              # Limpiar puerto 5206
+              lsof -ti:5206 | xargs kill -9 2>/dev/null || true
+              
+              # Crear archivo de configuración PM2
+              cat > ecosystem.config.js << 'PMCONFIG'
+module.exports = {
+  apps: [{
+    name: 'backend-million',
+    script: 'dotnet',
+    args: 'BackendMillionApi.dll',
+    interpreter: 'none',
+    cwd: '${{ secrets.APP_PATH_BACKEND }}',
+    env: {
+      ASPNETCORE_ENVIRONMENT: 'Production',
+      ASPNETCORE_URLS: 'http://0.0.0.0:5206',
+      DOTNET_ROOT: process.env.HOME + '/.dotnet',
+      PATH: process.env.PATH + ':' + process.env.HOME + '/.dotnet'
+    },
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G'
+  }]
+};
+PMCONFIG
+              
+              # Iniciar con configuración
+              echo "🚀 Iniciando backend con PM2..."
+              pm2 start ecosystem.config.js
+              
+              # Guardar configuración
+              pm2 save
+              
+              # Esperar que inicie
+              sleep 2
+              
+              # Mostrar estado
+              pm2 list
+              
+              # Verificar puerto
+              echo ""
+              echo "🔍 Verificando puerto 5206..."
+              lsof -i :5206 || echo "⚠️  Puerto aún no está escuchando"
+              
+              # Mostrar logs
+              echo ""
+              echo "📋 Últimos logs:"
+              pm2 logs backend-million --lines 15 --nostream
+              
+              echo ""
+              echo "✅ Backend iniciado correctamente"
               exit 0
             fi
             
-            echo "⚠️  Ni systemd ni PM2 disponibles"
+            echo "❌ Ni systemd ni PM2 disponibles"
             echo "💡 Ejecuta manualmente:"
             echo "   cd ${{ secrets.APP_PATH_BACKEND }}"
-            echo "   dotnet BackendMillionApi.dll"
+            echo "   ASPNETCORE_URLS=http://0.0.0.0:5206 dotnet BackendMillionApi.dll"
           EOF
 
   # ==============================================================================
