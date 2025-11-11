@@ -116,7 +116,7 @@ jobs:
           cd BackendMillionApi
           dotnet publish -c Release -o ./publish
 
-      - name: 📤 Deploy to Server
+      - name: 📤 Deploy to Server (Backend)
         run: |
           echo "Configurando SSH..."
           mkdir -p ~/.ssh
@@ -128,28 +128,37 @@ jobs:
           echo "📤 Desplegando backend al servidor..."
           echo "=================================================="
           
-          # Crear directorio de backup
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.APP_PATH_BACKEND }}/backup"
+          # Crear directorio de destino si no existe
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.APP_PATH_BACKEND }}"
           
-          # Backup de configuración actual
+          # Backup de archivos de configuración
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            mkdir -p /tmp/config_backup
             if [ -f ${{ secrets.APP_PATH_BACKEND }}/appsettings.json ]; then
-              cp ${{ secrets.APP_PATH_BACKEND }}/appsettings.json ${{ secrets.APP_PATH_BACKEND }}/backup/
+              cp ${{ secrets.APP_PATH_BACKEND }}/appsettings.json /tmp/config_backup/
+            fi
+            if [ -f ${{ secrets.APP_PATH_BACKEND }}/appsettings.Production.json ]; then
+              cp ${{ secrets.APP_PATH_BACKEND }}/appsettings.Production.json /tmp/config_backup/
             fi
           "
           
-          # Copiar archivos compilados al servidor
+          # Copiar archivos compilados al servidor usando rsync
           rsync -avz --delete \
             --exclude='appsettings.json' \
             --exclude='appsettings.*.json' \
+            --exclude='*.pdb' \
             BackendMillionApi/publish/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_BACKEND }}/
           
-          # Restaurar configuración
+          # Restaurar archivos de configuración
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
-            if [ -f ${{ secrets.APP_PATH_BACKEND }}/backup/appsettings.json ]; then
-              cp ${{ secrets.APP_PATH_BACKEND }}/backup/appsettings.json ${{ secrets.APP_PATH_BACKEND }}/
+            if [ -f /tmp/config_backup/appsettings.json ]; then
+              cp /tmp/config_backup/appsettings.json ${{ secrets.APP_PATH_BACKEND }}/
             fi
+            if [ -f /tmp/config_backup/appsettings.Production.json ]; then
+              cp /tmp/config_backup/appsettings.Production.json ${{ secrets.APP_PATH_BACKEND }}/
+            fi
+            rm -rf /tmp/config_backup
           "
           
           echo "✅ Archivos desplegados correctamente"
@@ -208,7 +217,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
 
-      - name: 📤 Deploy to Server
+      - name: 📤 Deploy to Server (Frontend)
         run: |
           echo "Configurando SSH..."
           mkdir -p ~/.ssh
@@ -220,13 +229,40 @@ jobs:
           echo "📤 Desplegando frontend al servidor..."
           echo "=================================================="
           
+          # Crear directorio de destino si no existe
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.APP_PATH_FRONTEND }}"
+          
+          # Backup de archivo de entorno
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            mkdir -p /tmp/frontend_backup
+            if [ -f ${{ secrets.APP_PATH_FRONTEND }}/.env.local ]; then
+              cp ${{ secrets.APP_PATH_FRONTEND }}/.env.local /tmp/frontend_backup/
+            fi
+            if [ -f ${{ secrets.APP_PATH_FRONTEND }}/.env.production.local ]; then
+              cp ${{ secrets.APP_PATH_FRONTEND }}/.env.production.local /tmp/frontend_backup/
+            fi
+          "
+          
           # Copiar archivos al servidor
           rsync -avz --delete \
             --exclude='node_modules' \
             --exclude='.env.local' \
             --exclude='.env*.local' \
+            --exclude='.git' \
+            --exclude='coverage' \
             frontend/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_FRONTEND }}/
+          
+          # Restaurar archivos de entorno
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            if [ -f /tmp/frontend_backup/.env.local ]; then
+              cp /tmp/frontend_backup/.env.local ${{ secrets.APP_PATH_FRONTEND }}/
+            fi
+            if [ -f /tmp/frontend_backup/.env.production.local ]; then
+              cp /tmp/frontend_backup/.env.production.local ${{ secrets.APP_PATH_FRONTEND }}/
+            fi
+            rm -rf /tmp/frontend_backup
+          "
           
           echo "✅ Archivos desplegados correctamente"
 
