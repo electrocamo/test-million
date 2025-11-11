@@ -71,22 +71,41 @@ jobs:
             BackendMillionApi/publish/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_BACKEND }}/
 
-      - name: 🔄 Restart Backend
+      - name: 🔄 Setup & Restart Backend
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            echo "🔄 Reiniciando backend..."
+            echo "🔄 Configurando backend..."
             
             # Verificar si .NET está instalado
             if ! command -v dotnet &> /dev/null; then
-              echo "❌ ERROR: .NET Runtime no está instalado"
-              echo "📝 Instálalo con:"
-              echo "   wget https://dot.net/v1/dotnet-install.sh"
-              echo "   chmod +x dotnet-install.sh"
-              echo "   ./dotnet-install.sh --channel 9.0 --runtime aspnetcore"
-              exit 1
+              echo "⚙️  .NET no encontrado, instalando automáticamente..."
+              
+              # Instalar .NET Runtime
+              wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
+              chmod +x /tmp/dotnet-install.sh
+              /tmp/dotnet-install.sh --channel 9.0 --runtime aspnetcore --install-dir $HOME/.dotnet
+              
+              # Agregar al PATH
+              if ! grep -q 'export PATH="$PATH:$HOME/.dotnet"' ~/.bashrc; then
+                echo 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.bashrc
+                echo 'export PATH="$PATH:$HOME/.dotnet"' >> ~/.bashrc
+              fi
+              
+              # Aplicar cambios
+              export DOTNET_ROOT=$HOME/.dotnet
+              export PATH="$PATH:$HOME/.dotnet"
+              
+              # Limpiar
+              rm -f /tmp/dotnet-install.sh
+              
+              echo "✅ .NET Runtime instalado: $($HOME/.dotnet/dotnet --version)"
+            else
+              echo "✅ .NET encontrado: $(dotnet --version)"
             fi
             
-            echo "✅ .NET encontrado: $(dotnet --version)"
+            # Asegurar que dotnet esté en el PATH
+            export DOTNET_ROOT=$HOME/.dotnet
+            export PATH="$PATH:$HOME/.dotnet"
             
             # Intentar reiniciar con systemd primero
             if command -v systemctl &> /dev/null; then
