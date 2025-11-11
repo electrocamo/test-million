@@ -1,0 +1,111 @@
+# ==============================================================================
+# Deployment con Docker (Alternativa sin .NET en servidor)
+# ==============================================================================
+
+name: 🐳 Deploy with Docker
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - main
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  deploy-backend-docker:
+    name: 🔧 Backend (Docker)
+    runs-on: ubuntu-latest
+    environment: PRODUCTION
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build Docker Image
+        run: |
+          cd BackendMillionApi
+          docker build -t backend-million:latest .
+
+      - name: 💾 Save Image
+        run: |
+          docker save backend-million:latest | gzip > backend-image.tar.gz
+
+      - name: 📤 Deploy to Server
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          
+          # Copiar imagen al servidor
+          scp backend-image.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/
+          
+          # Cargar y ejecutar en servidor
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            # Cargar imagen
+            docker load < /tmp/backend-image.tar.gz
+            rm /tmp/backend-image.tar.gz
+            
+            # Detener contenedor anterior
+            docker stop backend-million 2>/dev/null || true
+            docker rm backend-million 2>/dev/null || true
+            
+            # Ejecutar nuevo contenedor
+            docker run -d \
+              --name backend-million \
+              --restart unless-stopped \
+              -p 5206:8080 \
+              -v ${{ secrets.APP_PATH_BACKEND }}/appsettings.json:/app/appsettings.json \
+              backend-million:latest
+          EOF
+
+  deploy-frontend:
+    name: 🎨 Frontend
+    runs-on: ubuntu-latest
+    environment: PRODUCTION
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🎨 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 📦 Install & Build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      - name: 📤 Deploy
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.APP_PATH_FRONTEND }}"
+          
+          rsync -avz --delete \
+            --exclude='node_modules' \
+            --exclude='.env*.local' \
+            frontend/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_PATH_FRONTEND }}/
+
+      - name: 🔄 Restart
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd ${{ secrets.APP_PATH_FRONTEND }}
+            npm ci --production
+            pm2 restart ${{ secrets.PM2_APP_NAME_FRONTEND }} || pm2 start npm --name ${{ secrets.PM2_APP_NAME_FRONTEND }} -- start
+            pm2 save
+          EOF
+

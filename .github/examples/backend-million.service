@@ -1,0 +1,17 @@
+[Unit]
+Description=Backend Million Real Estate API
+After=network.target
+
+[Service]
+Type=notify
+User=TU_USUARIO
+WorkingDirectory=/var/www/TestMillion/Back
+ExecStart=/home/TU_USUARIO/.dotnet/dotnet BackendMillionApi.dll
+Restart=always
+RestartSec=10
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5206
+
+[Install]
+WantedBy=multi-user.target
+
