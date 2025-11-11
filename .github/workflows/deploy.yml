@@ -251,9 +251,10 @@ jobs:
               echo "✅ Aplicación anterior eliminada"
             fi
             
-            # Limpiar puerto antes de iniciar
+            # Limpiar puerto antes de iniciar (solo procesos node)
             echo "🧹 Limpiando puerto $FRONTEND_PORT..."
-            lsof -ti:$FRONTEND_PORT | xargs kill -9 2>/dev/null || true
+            pkill -f "npm.*start" 2>/dev/null || true
+            sleep 2
             
             # Iniciar aplicación con puerto personalizado
             echo "🚀 Iniciando aplicación en puerto $FRONTEND_PORT..."
