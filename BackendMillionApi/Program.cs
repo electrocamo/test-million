@@ -35,9 +35,16 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:3000")
+            policy.WithOrigins(
+                      "http://localhost:3000",           // Desarrollo local
+                      "http://localhost:3001",           // Puerto alternativo local
+                      "http://162.213.249.201:3000",     // Producción - puerto 3000
+                      "http://162.213.249.201:3001",     // Producción - puerto 3001
+                      "http://162.213.249.201:8080"      // Producción - puerto 8080
+                  )
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         });
 });
 
