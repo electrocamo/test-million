@@ -44,11 +44,13 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+// Habilitar Swagger en todos los ambientes (Development y Production)
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Real Estate API v1");
+    c.RoutePrefix = "swagger"; // Accesible en /swagger
+});
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
