@@ -59,7 +59,6 @@ data/
 *.lock
 
 # Package managers
-package-lock.json
 yarn.lock
 
 
