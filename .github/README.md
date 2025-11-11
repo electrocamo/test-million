@@ -34,9 +34,11 @@ Configura estos secretos en: `Settings > Secrets and variables > Actions`
 | `SSH_HOST` | IP o dominio del servidor | `192.168.1.100` |
 | `SSH_USER` | Usuario SSH | `deployer` |
 | `SSH_KEY` | Clave privada SSH completa | `-----BEGIN OPENSSH...` |
-| `APP_PATH_BACKEND` | Ruta del backend en servidor | `/home/deployer/apps/TestMillion` |
-| `APP_PATH_FRONTEND` | Ruta del frontend en servidor | `/home/deployer/apps/TestMillion` |
+| `APP_PATH_BACKEND` | Ruta del backend en servidor | `/var/www/TestMillion/Back` |
+| `APP_PATH_FRONTEND` | Ruta del frontend en servidor | `/var/www/TestMillion/Front` |
 | `PM2_APP_NAME_FRONTEND` | Nombre de app en PM2 | `real-estate-frontend` |
+| `FRONTEND_PORT` | Puerto del frontend **(opcional)** | `3000` |
+| `NEXT_PUBLIC_API_URL` | URL del API backend | `http://192.168.1.100:5206/api` |
 
 ## 🚀 Inicio Rápido
 

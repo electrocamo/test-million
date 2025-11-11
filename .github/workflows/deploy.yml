@@ -192,20 +192,31 @@ jobs:
             fi
             
             APP_NAME="${{ secrets.PM2_APP_NAME_FRONTEND }}"
+            FRONTEND_PORT="${{ secrets.FRONTEND_PORT }}"
+            
+            # Puerto por defecto si no está configurado
+            if [ -z "$FRONTEND_PORT" ]; then
+              FRONTEND_PORT=3000
+              echo "⚠️  FRONTEND_PORT no configurado, usando puerto por defecto: 3000"
+            else
+              echo "✅ Puerto configurado: $FRONTEND_PORT"
+            fi
             
             # Verificar si la app ya existe en PM2
             if pm2 list | grep -q "$APP_NAME"; then
               echo "🔄 Aplicación existe, reiniciando..."
-              pm2 reload "$APP_NAME" --update-env
-              echo "✅ Aplicación reiniciada"
-            else
-              echo "🚀 Primera ejecución, iniciando aplicación..."
-              # Detener cualquier proceso en puerto 3000
-              lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-              # Iniciar nueva aplicación
-              pm2 start npm --name "$APP_NAME" -- start
-              echo "✅ Aplicación iniciada"
+              # Actualizar variables de entorno y reiniciar
+              pm2 delete "$APP_NAME"
+              echo "✅ Aplicación anterior eliminada"
             fi
+            
+            # Limpiar puerto antes de iniciar
+            echo "🧹 Limpiando puerto $FRONTEND_PORT..."
+            lsof -ti:$FRONTEND_PORT | xargs kill -9 2>/dev/null || true
+            
+            # Iniciar aplicación con puerto personalizado
+            echo "🚀 Iniciando aplicación en puerto $FRONTEND_PORT..."
+            PORT=$FRONTEND_PORT pm2 start npm --name "$APP_NAME" -- start
             
             # Guardar configuración de PM2
             pm2 save
@@ -213,7 +224,10 @@ jobs:
             # Mostrar estado
             pm2 list
             
-            echo "✅ Frontend desplegado y corriendo correctamente"
+            echo "=================================================="
+            echo "✅ Frontend desplegado correctamente"
+            echo "🌐 Accesible en: http://$(hostname -I | awk '{print $1}'):$FRONTEND_PORT"
+            echo "=================================================="
           EOF
 
   # ==============================================================================
