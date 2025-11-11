@@ -135,31 +135,14 @@ jobs:
               # Limpiar puerto 5206
               lsof -ti:5206 | xargs kill -9 2>/dev/null || true
               
-              # Crear archivo de configuración PM2
-              cat > ecosystem.config.js << 'PMCONFIG'
-module.exports = {
-  apps: [{
-    name: 'backend-million',
-    script: 'dotnet',
-    args: 'BackendMillionApi.dll',
-    interpreter: 'none',
-    cwd: '${{ secrets.APP_PATH_BACKEND }}',
-    env: {
-      ASPNETCORE_ENVIRONMENT: 'Production',
-      ASPNETCORE_URLS: 'http://0.0.0.0:5206',
-      DOTNET_ROOT: process.env.HOME + '/.dotnet',
-      PATH: process.env.PATH + ':' + process.env.HOME + '/.dotnet'
-    },
-    autorestart: true,
-    watch: false,
-    max_memory_restart: '1G'
-  }]
-};
-PMCONFIG
-              
-              # Iniciar con configuración
+              # Iniciar con variables de entorno configuradas
               echo "🚀 Iniciando backend con PM2..."
-              pm2 start ecosystem.config.js
+              ASPNETCORE_ENVIRONMENT=Production \
+              ASPNETCORE_URLS=http://0.0.0.0:5206 \
+              pm2 start dotnet \
+                --name backend-million \
+                --interpreter none \
+                -- BackendMillionApi.dll
               
               # Guardar configuración
               pm2 save
