@@ -70,12 +70,13 @@ export const propertyApi = {
     await api.put(`/properties/${id}`, property);
   },
 
-  // Delete a property
+  // Delete a  property
   delete: async (id: string): Promise<void> => {
     await api.delete(`/properties/${id}`);
   },
 };
 
 export default api;
+
 
 
